@@ -9,6 +9,7 @@ import time
 import cv2
 import socketio
 
+calibration_points = []
 
 # construct the argument parser and parse the arguments
 ap = argparse.ArgumentParser()
@@ -21,6 +22,8 @@ sio = socketio.Client()
 @sio.on('connect')
 def on_connect():
 	print('Connected')
+def contains(topLeft,topRight,bottomRight,bottomLeft,p):
+    return p["x"] >= topLeft["x"] and p["x"] <= topRight["x"] and p["y"] >= topLeft["y"] and p["y"] <= bottomRight["y"] 
 sio.connect('https://dronie.vincentriva.fr')
 
 # initialize a dictionary that maps strings to their corresponding
@@ -60,7 +63,10 @@ while True:
 		break
 
 	# resize the frame (so we can process it faster)
-	frame = imutils.resize(frame, width=600)
+	frame = imutils.resize(frame, width=1200)
+
+
+	
 
 	# grab the updated bounding box coordinates (if any) for each
 	# object that is being tracked
@@ -71,14 +77,23 @@ while True:
 		(x, y, w, h) = [int(v) for v in box]
 		cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 		sio.emit('DRONE:DETECT', {'x': x, 'y': y})
+		if(len(calibration_points) == 4 and contains(calibration_points[0],calibration_points[1],calibration_points[2],calibration_points[3],{'x': x, 'y': y}) is False) :
+			sio.emit('DRONE:STOP')
 
-	# show the output frame
-	cv2.imshow("Frame", frame)
+
 	key = cv2.waitKey(1) & 0xFF
 
 	if key == ord("a"):
 		print('Sending event')
 		sio.emit('DRONE:CALIBRATION', {'x': x, 'y': y})
+		calibration_points.append({'x': x, 'y': y})
+
+	for point in calibration_points:
+		cv2.rectangle(frame, (point["x"], point["y"]), (point["x"] + 5, point["y"] + 5), (0, 0, 255), cv2.FILLED)
+
+	# show the output frame
+	cv2.imshow("Frame", frame)
+
 
 	# if the 's' key is selected, we are going to "select" a bounding
 	# box to track
