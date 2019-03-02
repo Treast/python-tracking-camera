@@ -8,6 +8,8 @@ import imutils
 import time
 import cv2
 import socketio
+import csv
+import os
 
 calibration_points = []
 
@@ -15,7 +17,7 @@ calibration_points = []
 ap = argparse.ArgumentParser()
 ap.add_argument("-v", "--video", type=str,
 	help="path to input video file")
-ap.add_argument("-t", "--tracker", type=str, default="kcf",
+ap.add_argument("-t", "--tracker", type=str, default="csrt",
 	help="OpenCV object tracker type")
 args = vars(ap.parse_args())
 sio = socketio.Client()
@@ -40,6 +42,14 @@ OPENCV_OBJECT_TRACKERS = {
 
 # initialize OpenCV's special multi-object tracker
 trackers = cv2.MultiTracker_create()
+
+if os.path.isfile('calibration.csv'):
+	with open('calibration.csv') as f:
+		reader = csv.reader(f)
+		for row in reader:
+			calibration_points.append({'x': int(row[0]), 'y': int(row[1])})
+			sio.emit('DRONE:CALIBRATION', {'x': int(row[0]), 'y': int(row[1])})
+	
 
 # if a video path was not supplied, grab the reference to the web cam
 if not args.get("video", False):
@@ -77,8 +87,8 @@ while True:
 		(x, y, w, h) = [int(v) for v in box]
 		cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 		sio.emit('DRONE:DETECT', {'x': x, 'y': y})
-		if(len(calibration_points) == 4 and contains(calibration_points[0],calibration_points[1],calibration_points[2],calibration_points[3],{'x': x, 'y': y}) is False) :
-			sio.emit('DRONE:STOP')
+		# if(len(calibration_points) == 4 and contains(calibration_points[0],calibration_points[1],calibration_points[2],calibration_points[3],{'x': x, 'y': y}) is False) :
+			# sio.emit('DRONE:STOP')
 
 
 	key = cv2.waitKey(1) & 0xFF
@@ -87,6 +97,11 @@ while True:
 		print('Sending event')
 		sio.emit('DRONE:CALIBRATION', {'x': x, 'y': y})
 		calibration_points.append({'x': x, 'y': y})
+		if len(calibration_points) >= 4:
+			with open('calibration.csv', 'w') as f:
+				writer = csv.writer(f)
+				for point in calibration_points:
+					writer.writerow([point["x"], point["y"]])
 
 	for point in calibration_points:
 		cv2.rectangle(frame, (point["x"], point["y"]), (point["x"] + 5, point["y"] + 5), (0, 0, 255), cv2.FILLED)
