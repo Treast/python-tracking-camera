@@ -10,6 +10,7 @@ import cv2
 import socketio
 import csv
 import os
+import math
 
 calibration_points = []
 
@@ -19,6 +20,8 @@ ap.add_argument("-v", "--video", type=str,
 	help="path to input video file")
 ap.add_argument("-t", "--tracker", type=str, default="csrt",
 	help="OpenCV object tracker type")
+ap.add_argument("-d", "--distance", type=int, default=0,
+	help="OpenCV object distance shadow")
 args = vars(ap.parse_args())
 sio = socketio.Client()
 @sio.on('connect')
@@ -49,7 +52,14 @@ if os.path.isfile('calibration.csv'):
 		for row in reader:
 			calibration_points.append({'x': int(row[0]), 'y': int(row[1])})
 			sio.emit('DRONE:CALIBRATION', {'x': int(row[0]), 'y': int(row[1])})
-	
+		if args["distance"] > 0:
+			middleBottom = {
+				'x': (calibration_points[2]["x"] + calibration_points[3]["x"]) / 2,
+				'y': (calibration_points[2]["y"] + calibration_points[3]["y"]) / 2,
+			}
+			print("Middle: ")
+			print(middleBottom['x'])
+			print(middleBottom['y'])
 
 # if a video path was not supplied, grab the reference to the web cam
 if not args.get("video", False):
@@ -73,10 +83,7 @@ while True:
 		break
 
 	# resize the frame (so we can process it faster)
-	frame = imutils.resize(frame, width=1200)
-
-
-	
+	frame = imutils.resize(frame, width=1200)	
 
 	# grab the updated bounding box coordinates (if any) for each
 	# object that is being tracked
@@ -86,10 +93,14 @@ while True:
 	for box in boxes:
 		(x, y, w, h) = [int(v) for v in box]
 		cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-		sio.emit('DRONE:DETECT', {'x': x, 'y': y})
+		if middleBottom:
+			angle = math.atan2(middleBottom["y"] - y, middleBottom["x"] - x)
+			sio.emit('DRONE:DETECT', {'x': x - math.cos(angle) * args["distance"], 'y': y})
+		else:
+			sio.emit('DRONE:DETECT', {'x': x, 'y': y})
+
 		# if(len(calibration_points) == 4 and contains(calibration_points[0],calibration_points[1],calibration_points[2],calibration_points[3],{'x': x, 'y': y}) is False) :
 			# sio.emit('DRONE:STOP')
-
 
 	key = cv2.waitKey(1) & 0xFF
 
@@ -98,6 +109,14 @@ while True:
 		sio.emit('DRONE:CALIBRATION', {'x': x, 'y': y})
 		calibration_points.append({'x': x, 'y': y})
 		if len(calibration_points) >= 4:
+			if args["distance"] > 0:
+				middleBottom = {
+					'x': (calibration_points[2]["x"] + calibration_points[3]["x"]) / 2,
+					'y': (calibration_points[2]["y"] + calibration_points[3]["y"]) / 2,
+				}
+				print("Middle: ")
+				print(middleBottom['x'])
+				print(middleBottom['y'])
 			with open('calibration.csv', 'w') as f:
 				writer = csv.writer(f)
 				for point in calibration_points:
