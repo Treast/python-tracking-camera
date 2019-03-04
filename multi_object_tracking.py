@@ -45,6 +45,7 @@ OPENCV_OBJECT_TRACKERS = {
 
 # initialize OpenCV's special multi-object tracker
 trackers = cv2.MultiTracker_create()
+middleBottom = None
 
 if os.path.isfile('calibration.csv'):
 	with open('calibration.csv') as f:
@@ -93,7 +94,7 @@ while True:
 	for box in boxes:
 		(x, y, w, h) = [int(v) for v in box]
 		cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-		if middleBottom:
+		if middleBottom is not None:
 			angle = math.atan2(middleBottom["y"] - y, middleBottom["x"] - x)
 			sio.emit('DRONE:DETECT', {'x': x - math.cos(angle) * args["distance"], 'y': y})
 		else:
