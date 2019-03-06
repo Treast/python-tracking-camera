@@ -105,6 +105,11 @@ while True:
 
 	key = cv2.waitKey(1) & 0xFF
 
+	if key == ord("f"):
+		for point in calibration_points:
+			sio.emit('DRONE:CALIBRATION', {'x': point["x"], 'y': point["y"]})
+	
+
 	if key == ord("a"):
 		print('Sending event')
 		sio.emit('DRONE:CALIBRATION', {'x': x, 'y': y})
